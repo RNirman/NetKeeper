@@ -1,4 +1,5 @@
 import { app, BrowserWindow, ipcMain } from 'electron';
+import { sendKeepAliveRequest } from './keepAliveService';
 import path from 'node:path';
 import started from 'electron-squirrel-startup';
 
@@ -8,18 +9,53 @@ if (started) {
 }
 
 let keepAliveRunning = false;
+let keepAliveTimer: NodeJS.Timeout | null = null;
 
-ipcMain.handle('keep-alive:start', () => {
-  keepAliveRunning = true;
-  console.log('Keep-alive started');
+ipcMain.handle(
+  'keep-alive:start',
+  async (_event, targetUrl: string, intervalSeconds: number) => {
+    if (keepAliveTimer) {
+      clearInterval(keepAliveTimer);
+    }
 
-  return {
-    running: keepAliveRunning,
-  };
-});
+    keepAliveRunning = true;
+
+    const runRequest = async () => {
+      if (!keepAliveRunning) {
+        return;
+      }
+
+      const result = await sendKeepAliveRequest(targetUrl);
+
+      console.log('Keep-alive result:', result);
+    };
+
+    await runRequest();
+
+    keepAliveTimer = setInterval(
+      runRequest,
+      intervalSeconds * 1000,
+    );
+
+    console.log(
+      `Keep-alive started: ${targetUrl} every ${intervalSeconds} seconds`,
+    );
+
+    return {
+      running: keepAliveRunning,
+      result: await sendKeepAliveRequest(targetUrl),
+    };
+  },
+);
 
 ipcMain.handle('keep-alive:stop', () => {
   keepAliveRunning = false;
+
+  if (keepAliveTimer) {
+    clearInterval(keepAliveTimer);
+    keepAliveTimer = null;
+  }
+
   console.log('Keep-alive stopped');
 
   return {
