@@ -1,6 +1,73 @@
-import React from 'react';
+import React, { useEffect, useState } from 'react';
+
+const supportedIntervals = [5, 10, 15, 30, 60];
+
+const initialStatus: KeepAliveStatus = {
+  running: false,
+  target: '',
+  intervalSeconds: 10,
+  requests: 0,
+  successful: 0,
+  failed: 0,
+  averageLatencyMs: null,
+  recentEvents: [],
+};
 
 const App = () => {
+  const [status, setStatus] = useState(initialStatus);
+  const [target, setTarget] = useState('');
+  const [intervalSeconds, setIntervalSeconds] = useState(10);
+  const [busy, setBusy] = useState(false);
+  const [error, setError] = useState('');
+
+  useEffect(() => {
+    let mounted = true;
+    const unsubscribe = window.hutchKeeper.onUpdate(setStatus);
+
+    window.hutchKeeper
+      .getStatus()
+      .then((currentStatus) => {
+        if (mounted) {
+          setStatus(currentStatus);
+          setTarget(currentStatus.target);
+          setIntervalSeconds(currentStatus.intervalSeconds);
+        }
+      })
+      .catch((reason: unknown) => {
+        if (mounted) {
+          setError(
+            reason instanceof Error
+              ? reason.message
+              : 'Could not read service status.',
+          );
+        }
+      });
+
+    return () => {
+      mounted = false;
+      unsubscribe();
+    };
+  }, []);
+
+  const toggleKeepAlive = async () => {
+    setBusy(true);
+    setError('');
+    try {
+      const updatedStatus = status.running
+        ? await window.hutchKeeper.stop()
+        : await window.hutchKeeper.start(target, intervalSeconds);
+      setStatus(updatedStatus);
+    } catch (reason) {
+      setError(
+        reason instanceof Error
+          ? reason.message
+          : 'Could not update the ping service.',
+      );
+    } finally {
+      setBusy(false);
+    }
+  };
+
   return (
     <div className="app">
       <header className="header">
@@ -9,9 +76,9 @@ const App = () => {
           <p>Connection Keep-Alive</p>
         </div>
 
-        <div className="status">
-          <span className="status-dot"></span>
-          <span>Stopped</span>
+        <div className={`status ${status.running ? 'is-running' : ''}`}>
+          <span className="status-dot" aria-hidden="true"></span>
+          <span>{status.running ? 'Running' : 'Stopped'}</span>
         </div>
       </header>
 
@@ -19,14 +86,26 @@ const App = () => {
         <section className="card connection-card">
           <div>
             <p className="label">Connection Status</p>
-            <h2>Not Running</h2>
+            <h2>
+              {status.running ? `Pinging ${status.target}` : 'Not Running'}
+            </h2>
             <p className="description">
-              Start the keep-alive service to maintain background network
-              activity.
+              Send periodic ICMP pings to help keep your Hutch connection
+              active.
             </p>
           </div>
 
-          <button className="start-button">Start Keep-Alive</button>
+          <button
+            className={`start-button ${status.running ? 'stop-button' : ''}`}
+            onClick={toggleKeepAlive}
+            disabled={busy}
+          >
+            {busy
+              ? 'Please wait…'
+              : status.running
+                ? 'Stop Pinging'
+                : 'Start Pinging'}
+          </button>
         </section>
 
         <section className="card">
@@ -34,59 +113,107 @@ const App = () => {
 
           <div className="settings">
             <div className="field">
-              <label htmlFor="target">Target URL</label>
+              <label htmlFor="target">Target host or IP address</label>
               <input
                 id="target"
-                type="url"
-                placeholder="https://example.com"
+                type="text"
+                placeholder="example.com or 1.1.1.1"
+                autoComplete="off"
+                spellCheck={false}
+                value={target}
+                onChange={(event) => setTarget(event.target.value)}
+                disabled={status.running || busy}
               />
             </div>
 
             <div className="field">
               <label htmlFor="interval">Interval</label>
-              <select id="interval" defaultValue="10">
-                <option value="5">5 seconds</option>
-                <option value="10">10 seconds</option>
-                <option value="15">15 seconds</option>
-                <option value="30">30 seconds</option>
-                <option value="60">60 seconds</option>
+              <select
+                id="interval"
+                value={intervalSeconds}
+                onChange={(event) =>
+                  setIntervalSeconds(Number(event.target.value))
+                }
+                disabled={status.running || busy}
+              >
+                {supportedIntervals.map((seconds) => (
+                  <option key={seconds} value={seconds}>
+                    {seconds} seconds
+                  </option>
+                ))}
               </select>
             </div>
           </div>
+          <p className="hint">
+            Use a host that responds to ICMP. Some hosts or networks block ping
+            requests.
+          </p>
+          {error && (
+            <p className="error-message" role="alert">
+              {error}
+            </p>
+          )}
         </section>
 
         <section className="stats">
           <div className="card stat-card">
             <span className="label">Requests</span>
-            <strong>0</strong>
+            <strong>{status.requests}</strong>
           </div>
 
           <div className="card stat-card">
             <span className="label">Successful</span>
-            <strong>0</strong>
+            <strong>{status.successful}</strong>
           </div>
 
           <div className="card stat-card">
             <span className="label">Failed</span>
-            <strong>0</strong>
+            <strong>{status.failed}</strong>
           </div>
 
           <div className="card stat-card">
             <span className="label">Average Latency</span>
-            <strong>-- ms</strong>
+            <strong>
+              {status.averageLatencyMs === null
+                ? '--'
+                : status.averageLatencyMs}{' '}
+              ms
+            </strong>
           </div>
         </section>
 
         <section className="card activity-card">
           <div className="section-heading">
             <h2>Recent Activity</h2>
-            <span>0 events</span>
+            <span>{status.requests} pings</span>
           </div>
 
-          <div className="empty-state">
-            <p>No activity yet</p>
-            <span>Start the keep-alive service to see network activity here.</span>
-          </div>
+          {status.recentEvents.length === 0 ? (
+            <div className="empty-state">
+              <p>No activity yet</p>
+              <span>Start pinging to see connection activity here.</span>
+            </div>
+          ) : (
+            <ul className="activity-list">
+              {status.recentEvents.map((event, index) => (
+                <li
+                  className="activity-item"
+                  key={`${event.timestamp}-${index}`}
+                >
+                  <span
+                    className={`activity-indicator ${event.success ? 'success' : 'failure'}`}
+                  />
+                  <span className="activity-time">
+                    {new Date(event.timestamp).toLocaleTimeString()}
+                  </span>
+                  <span className="activity-message">{event.message}</span>
+                  <span className="activity-latency">
+                    {event.latencyMs === null ? '--' : `${event.latencyMs} ms`}
+                  </span>
+                </li>
+              ))}
+            </ul>
+          )}
         </section>
       </main>
     </div>

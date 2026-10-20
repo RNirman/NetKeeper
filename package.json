@@ -3,7 +3,7 @@
   "productName": "hutchkeeper",
   "version": "1.0.0",
   "private": true,
-  "description": "My Electron application description",
+  "description": "Keep Hutch internet connections active with periodic ICMP pings",
   "keywords": [],
   "license": "MIT",
   "author": {
