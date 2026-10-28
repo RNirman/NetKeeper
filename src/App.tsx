@@ -12,12 +12,12 @@ interface ActivityItem {
 
 const App = () => {
   const [running, setRunning] = useState(false);
-  const [interval, setInterval] = useState(10);
+  const [interval, setInterval] = useState(60);
   const [requests, setRequests] = useState(0);
   const [successful, setSuccessful] = useState(0);
   const [failed, setFailed] = useState(0);
   const [totalLatency, setTotalLatency] = useState(0);
-  const [targetUrl, setTargetUrl] = useState('https://example.com');
+  const [targetUrl, setTargetUrl] = useState('https://oneapp.hutch.lk');
   const [activities, setActivities] = useState<ActivityItem[]>([]);
 
   useEffect(() => {
@@ -192,15 +192,14 @@ const App = () => {
                 <div key={activity.id} className="activity-item">
                   <div className="activity-item-left">
                     <span
-                      className={`activity-badge ${
-                        activity.success ? 'badge-success' : 'badge-error'
-                      }`}
+                      className={`activity-badge ${activity.success ? 'badge-success' : 'badge-error'
+                        }`}
                     >
                       {activity.statusCode
                         ? `HTTP ${activity.statusCode}`
                         : activity.success
-                        ? 'SUCCESS'
-                        : 'FAILED'}
+                          ? 'SUCCESS'
+                          : 'FAILED'}
                     </span>
                     <span className="activity-url" title={activity.targetUrl}>
                       {activity.targetUrl || 'Keep-alive ping'}
