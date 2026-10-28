@@ -5,6 +5,7 @@ export interface KeepAliveResult {
   statusCode?: number;
   latency: number;
   error?: string;
+  targetUrl?: string;
 }
 
 export const sendKeepAliveRequest = (
@@ -22,6 +23,7 @@ export const sendKeepAliveRequest = (
         success: false,
         latency: Date.now() - startTime,
         error: 'Invalid URL',
+        targetUrl,
       });
 
       return;
@@ -45,6 +47,7 @@ export const sendKeepAliveRequest = (
             response.statusCode < 500,
           statusCode: response.statusCode,
           latency,
+          targetUrl,
         });
       },
     );
@@ -56,6 +59,7 @@ export const sendKeepAliveRequest = (
         success: false,
         latency: Date.now() - startTime,
         error: 'Request timed out',
+        targetUrl,
       });
     });
 
@@ -64,6 +68,7 @@ export const sendKeepAliveRequest = (
         success: false,
         latency: Date.now() - startTime,
         error: error.message,
+        targetUrl,
       });
     });
 

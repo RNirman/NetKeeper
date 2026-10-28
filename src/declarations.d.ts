@@ -6,23 +6,27 @@ interface HutchKeeperStatus {
   running: boolean;
 }
 
+interface KeepAliveResult {
+  success: boolean;
+  statusCode?: number;
+  latency: number;
+  error?: string;
+  targetUrl?: string;
+}
+
 interface HutchKeeperStartResult {
   running: boolean;
-  result: {
-    success: boolean;
-    statusCode?: number;
-    latency: number;
-    error?: string;
-  };
+  result: KeepAliveResult;
 }
 
 interface HutchKeeperAPI {
   start: (
-  targetUrl: string,
-  intervalSeconds: number,
-) => Promise<HutchKeeperStartResult>;
+    targetUrl: string,
+    intervalSeconds: number,
+  ) => Promise<HutchKeeperStartResult>;
   stop: () => Promise<HutchKeeperStatus>;
   getStatus: () => Promise<HutchKeeperStatus>;
+  onResult: (callback: (result: KeepAliveResult) => void) => () => void;
 }
 
 declare global {
